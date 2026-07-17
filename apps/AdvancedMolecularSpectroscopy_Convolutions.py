@@ -10,10 +10,29 @@ def _():
     import numpy as np
     import matplotlib.pyplot as plt
     from matplotlib.animation import FuncAnimation
-    from IPython.display import HTML
 
     app = mo.App()
     return app, mo, np, plt
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Calculating convolutions
+
+    This activity is designed to support Lecture 2 of the Advanced Molecular Spectroscopy course.
+
+    The demos below illustrate the calculation of the convolution (black trace, lower panel) of two distributions.  Move the sliders to change the width of the two distributions and their relative offset τ. At each value of τ, the shaded yellow area shows the integral of the overlap of the two distributions, which is the value of the convolution at that τ point.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    This first demo shows the convolution of a gaussian and a lorentzian distribution. This is the signal you would measure if you tried to probe a transition with a natural (Lorentzian) lineshape (e.g. the excited state of a fluorescent gas-phase molecule that returns to the ground state via spontaneous emission) using a gaussian laser pulse.  Experiment with moving the sliders and note what happens to the shape and width of the measured signal when the gaussian is much wider or much narrower than the lorentzian. When does the measured signal truly represent the properties of the molecule being probed? How wide can you make the guassian (laser pulse) before the measured signal no longer properly represents the system being measured?
+    """)
+    return
 
 
 @app.cell
@@ -39,7 +58,7 @@ def _(mo):
         stop=10.0,
         step=0.1,
         value=0.0,
-        label="Gaussian centre",
+        label="Gaussian centre τ",
     )
     return gamma, sigma, tau
 
@@ -209,6 +228,203 @@ def _(GAUSS_COLOUR, LOR_COLOUR, OVERLAP_COLOUR, gamma, np, plt, sigma, tau):
     fig.tight_layout()
 
     fig
+    return gaussian, t
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    This second demo shows the convolution of two gaussian distributions. This is the signal you would measure if you used a guassian laser pulse to probe a transition that also had a gaussian lineshape (e.g. had been heterogeneously broadened by interactions with the surrounding environment).  As above, move the sliders and note what happens to the shape and width of the measured signal when the moving gaussian (your laser pulse) is much wider or much narrower than the stationary pulse (the system lineshape). In this case, the shape of the measured signal (the convolution) won't change but think about how the width of the signal relates to the width of the laser pulse or the system lineshape.
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    sigma1 = mo.ui.slider(
+        start=0.1,
+        stop=3.0,
+        step=0.1,
+        value=0.5,
+        label="Gaussian 1 width σ1",
+    )
+
+    sigma2 = mo.ui.slider(
+        start=0.1,
+        stop=5.0,
+        step=0.1,
+        value=2.0,
+        label="Gaussian 2 width σ2",
+    )
+
+    tau2 = mo.ui.slider(
+        start=-10.0,
+        stop=10.0,
+        step=0.1,
+        value=0.0,
+        label="Gaussian 2 centre τ",
+    )
+    return sigma1, sigma2, tau2
+
+
+@app.cell
+def _(mo, sigma1, sigma2, tau2):
+    mo.vstack([
+        sigma1,
+        sigma2,
+        tau2,
+    ])
+    return
+
+
+@app.cell
+def _(
+    GAUSS_COLOUR,
+    LOR_COLOUR,
+    OVERLAP_COLOUR,
+    gaussian,
+    np,
+    plt,
+    sigma1,
+    sigma2,
+    t,
+    tau2,
+):
+    # --------------------------------------------------
+    # Top-panel data
+    # --------------------------------------------------
+
+    tm= np.linspace(-15, 15, 4000)
+
+    G1 = gaussian(t, sigma1.value, 1)
+
+    G2 = gaussian(
+        tm- tau2.value,
+        sigma2.value,
+        1,
+    )
+
+    overlap2 = np.minimum(G1, G2)
+
+    current_conv2 = np.trapezoid(G1 * G2, tm)
+
+    # --------------------------------------------------
+    # Precompute convolution trace
+    # --------------------------------------------------
+
+    tau2_grid = np.linspace(-10, 10, 300)
+
+    conv_values2 = []
+
+    for tau_j in tau2_grid:
+
+        G_i_2 = gaussian(
+            tm- tau_j,
+            sigma2.value,
+            1,
+        )
+
+        conv_values2.append(
+            np.trapezoid(G1 * G_i_2, tm)
+        )
+
+    conv_values2 = np.array(conv_values2)
+
+    # Find which part of the trace should be drawn
+    mask2 = tau2_grid <= tau2.value
+
+    # --------------------------------------------------
+    # Figure
+    # --------------------------------------------------
+
+    fig2, (ax3, ax4) = plt.subplots(
+        2,
+        1,
+        figsize=(8, 6),
+        sharex=False,
+        gridspec_kw={"height_ratios": [3, 2]},
+    )
+
+    # --------------------------------------------------
+    # Top panel
+    # --------------------------------------------------
+
+    ax3.plot(
+        t,
+        G1,
+        color=LOR_COLOUR,
+        lw=3,
+        label="Gaussian 1",
+    )
+
+    ax3.plot(
+        t,
+        G2,
+        color=GAUSS_COLOUR,
+        lw=3,
+        label="Gaussian 2",
+    )
+
+    ax3.fill_between(
+        t,
+        0,
+        overlap2,
+        color=OVERLAP_COLOUR,
+        alpha=0.8,
+    )
+
+    ax3.set_xlim(-15, 15)
+
+    ax3.set_ylabel("Amplitude")
+
+    ax3.set_title(
+        f"Current convolution value = {current_conv2:.4f}"
+    )
+
+    ax3.legend(frameon=False)
+
+    # --------------------------------------------------
+    # Bottom panel
+    # --------------------------------------------------
+
+    ax4.plot(
+        tau2_grid[mask2],
+        conv_values2[mask2],
+        color="black",
+        lw=2.5,
+    )
+
+    ax4.plot(
+        tau2.value,
+        current_conv2,
+        "o",
+        color="black",
+        markersize=7,
+    )
+
+    ax4.set_xlim(
+        -15,
+        15,
+    )
+
+    ax4.set_ylim(
+        0,
+        1.05 * conv_values2.max(),
+    )
+
+    ax4.axvline(
+        tau2.value,
+        color="grey",
+        ls="--",
+        alpha=0.5,
+    )
+
+    ax4.set_xlabel("Gaussian2 centre τ")
+    ax4.set_ylabel("Convolution")
+
+    fig2.tight_layout()
+
+    fig2
     return
 
 
